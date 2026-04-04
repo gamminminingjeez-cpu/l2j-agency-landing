@@ -741,6 +741,18 @@ function EtiquetasInner() {
       }
     }
 
+    // Para "Impresas": mostrar solo las del día actual (desde 00:00 hasta ahora)
+    // Se limpian automáticamente a las 00:00 porque la fecha cambia
+    if (statusTab === "printed") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      source = source.filter(s => {
+        if (!s.printed_at) return false;
+        const printedDate = new Date(s.printed_at);
+        return printedDate >= todayStart && printedDate <= now;
+      });
+    }
+
     return source;
   }, [data, statusTab, logisticFilter, timeFilter, zoneFilter]);
 
@@ -748,7 +760,16 @@ function EtiquetasInner() {
   const countByType = useCallback((type: LogisticType, status: StatusTab) => {
     let source: ShipmentInfo[] = [];
     if (status === "pending") source = data?.shipments ?? [];
-    else if (status === "printed") source = data?.printed ?? [];
+    else if (status === "printed") {
+      // Para "printed", filtrar solo las del día actual
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      source = (data?.printed ?? []).filter(s => {
+        if (!s.printed_at) return false;
+        const printedDate = new Date(s.printed_at);
+        return printedDate >= todayStart && printedDate <= now;
+      });
+    }
     else if (status === "in_transit") source = data?.in_transit ?? [];
     else if (status === "returns") source = data?.returns ?? [];
 
@@ -1138,9 +1159,20 @@ function EtiquetasInner() {
             {/* Pestañas de Estado */}
             <div className="flex gap-2 mb-4 flex-wrap">
               {(["pending", "printed", "in_transit", "returns"] as StatusTab[]).map(tab => {
+                // Para "printed", contar solo las del día actual
+                const getPrintedTodayCount = () => {
+                  if (tab !== "printed") return (data?.printed ?? []).length;
+                  const now = new Date();
+                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                  return (data?.printed ?? []).filter(s => {
+                    if (!s.printed_at) return false;
+                    const printedDate = new Date(s.printed_at);
+                    return printedDate >= todayStart && printedDate <= now;
+                  }).length;
+                };
                 const counts = {
                   pending:    (data?.shipments ?? []).length,
-                  printed:    (data?.printed ?? []).length,
+                  printed:    getPrintedTodayCount(),
                   in_transit: (data?.in_transit ?? []).length,
                   returns:    (data?.returns ?? []).length,
                 };
