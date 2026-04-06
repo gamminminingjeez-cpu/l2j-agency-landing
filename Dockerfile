@@ -1,5 +1,5 @@
 # Dockerfile para Railway - Next.js App Router (apps/meli)
-# Version: 3.0 - Force rebuild
+# Version: 4.0 - Force rebuild 2024-04-06
 FROM node:20-alpine AS base
 
 # Instalar dependencias
@@ -19,6 +19,9 @@ WORKDIR /app
 # Copiar node_modules y código fuente de meli
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/meli .
+
+# Limpiar caché de Next.js antes de build
+RUN rm -rf .next
 
 # Construir la aplicación
 RUN npm run build
