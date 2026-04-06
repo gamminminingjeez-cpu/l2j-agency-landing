@@ -1,4 +1,4 @@
-// Force rebuild: v3 - 3 etiquetas por hoja A4
+// v4 - copyPages directo, deduplicado por file_path
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
@@ -15,18 +15,12 @@ export async function POST(req: NextRequest) {
     const { ids, account_id, meli_user_id } = await req.json();
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: "No IDs provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
     }
 
-    // Validar permisos: obtener registros
     const supabase = getSupabase();
-    
-    // Eliminar IDs duplicados
     const uniqueIds = Array.from(new Set(ids));
-    
+
     let query = supabase
       .from("printed_labels")
       .select("*")
@@ -45,111 +39,53 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Eliminar registros duplicados por shipment_id (solo uno por etiqueta)
-    const uniqueRecords = [];
-    const seenShipmentIds = new Set();
-    for (const record of records) {
-      if (!seenShipmentIds.has(record.shipment_id)) {
-        seenShipmentIds.add(record.shipment_id);
-        uniqueRecords.push(record);
-      }
-    }
+    // ── Deduplicar por file_path ──────────────────────────────────────────
+    // save-print-batch guarda UN PDF batch (ya con 3 etiquetas por A4)
+    // y asigna la misma URL a los 3 registros individuales.
+    // Si no deduplicamos, descargamos el mismo PDF 3 veces y al combinar
+    // terminamos con 9 etiquetas miniaturizadas en una sola página.
+    const uniqueUrls = Array.from(new Set(
+      records.map((r: { file_path: string }) => r.file_path).filter(Boolean)
+    ));
 
-    // Descargar cada PDF y combinar en formato A4 landscape (3 etiquetas por fila)
+    // Descargar cada PDF único
     const pdfChunks: ArrayBuffer[] = [];
-
-    for (const record of uniqueRecords) {
+    for (const url of uniqueUrls) {
       try {
-        const filePath = record.file_path;
-        
-        // Obtener URL del archivo (ya es URL pública)
-        const response = await fetch(filePath);
+        const response = await fetch(url);
         if (!response.ok) {
-          console.warn(`Failed to fetch PDF: ${filePath}`);
+          console.warn(`[historial] No se pudo descargar: ${url}`);
           continue;
         }
-
-        const pdfBytes = await response.arrayBuffer();
-        pdfChunks.push(pdfBytes);
+        pdfChunks.push(await response.arrayBuffer());
       } catch (error) {
-        console.error(`Error processing PDF for record ${record.id}:`, error);
+        console.error(`[historial] Error descargando PDF:`, error);
       }
     }
 
-    // PDF Merge - 3 etiquetas por hoja A4 landscape
-    // A4 landscape: 297mm x 210mm = 841.89 x 595.28 puntos
-    const A4_W = 841.89;
-    const A4_H = 595.28;
-    
-    // Configuración: 3 etiquetas por fila
-    const LABELS_PER_ROW = 3;
-    const MARGIN_X = 20; // Margen lateral
-    const MARGIN_Y = 15; // Margen vertical
-    const GAP_X = 10;    // Espacio horizontal entre etiquetas
-    
-    // Ancho disponible para etiquetas
-    const availableWidth = A4_W - (MARGIN_X * 2);
-    // Alto disponible para etiquetas
-    const availableHeight = A4_H - (MARGIN_Y * 2);
-    
-    // Ancho de cada etiqueta (3 por fila con gaps)
-    const slotWidth = (availableWidth - (GAP_X * (LABELS_PER_ROW - 1))) / LABELS_PER_ROW;
-    // Alto de cada etiqueta (solo una fila por página)
-    const slotHeight = availableHeight;
-
-    // Cargar todos los PDFs
-    const allLabelPages: { doc: PDFDocument; idx: number; srcWidth: number; srcHeight: number }[] = [];
-    for (const chunk of pdfChunks) {
-      try {
-        const src = await PDFDocument.load(chunk, { ignoreEncryption: true });
-        const pageIdx = 0; // Solo primera página
-        const srcPage = src.getPage(pageIdx);
-        const { width: srcWidth, height: srcHeight } = srcPage.getSize();
-        allLabelPages.push({ doc: src, idx: pageIdx, srcWidth, srcHeight });
-      } catch {
-        console.warn("[etiquetas] Chunk de PDF invalido, saltando...");
-      }
-    }
-
-    if (allLabelPages.length === 0) {
+    if (pdfChunks.length === 0) {
       return NextResponse.json({ error: "No se pudo generar el PDF" }, { status: 502 });
     }
 
+    // ── Copiar páginas tal como están (sin re-escalar) ───────────────────
+    // Los PDFs almacenados YA tienen el layout correcto:
+    // A4 landscape con 3 etiquetas 10x15 por página.
     const pdfDoc = await PDFDocument.create();
-    
-    console.log(`[etiquetas] Total etiquetas a procesar: ${allLabelPages.length}`);
-    console.log(`[etiquetas] Slot size: ${slotWidth.toFixed(2)} x ${slotHeight.toFixed(2)}`);
 
-    // Crear páginas A4 con 3 etiquetas cada una
-    for (let i = 0; i < allLabelPages.length; i += LABELS_PER_ROW) {
-      const group = allLabelPages.slice(i, i + LABELS_PER_ROW);
-      const a4Page = pdfDoc.addPage([A4_W, A4_H]);
-
-      for (let j = 0; j < group.length; j++) {
-        const { doc, idx, srcWidth, srcHeight } = group[j];
-        const srcPage = doc.getPage(idx);
-        
-        // Calcular escala para que la etiqueta quepa en el slot manteniendo proporción
-        const scaleX = slotWidth / srcWidth;
-        const scaleY = slotHeight / srcHeight;
-        const scale = Math.min(scaleX, scaleY) * 0.95; // 95% para dejar margen
-        
-        // Dimensiones finales
-        const finalW = srcWidth * scale;
-        const finalH = srcHeight * scale;
-        
-        // Posición: centrada en su slot
-        const x = MARGIN_X + j * (slotWidth + GAP_X) + (slotWidth - finalW) / 2;
-        const y = MARGIN_Y + (slotHeight - finalH) / 2;
-        
-        console.log(`[etiquetas] Etiqueta ${i + j}: escala=${scale.toFixed(3)}, pos=(${x.toFixed(1)}, ${y.toFixed(1)}), size=${finalW.toFixed(1)}x${finalH.toFixed(1)}`);
-        
-        const embedded = await pdfDoc.embedPage(srcPage);
-        a4Page.drawPage(embedded, { x, y, width: finalW, height: finalH });
+    for (const chunk of pdfChunks) {
+      try {
+        const src = await PDFDocument.load(chunk, { ignoreEncryption: true });
+        const copiedPages = await pdfDoc.copyPages(src, src.getPageIndices());
+        copiedPages.forEach(page => pdfDoc.addPage(page));
+      } catch {
+        console.warn("[historial] PDF inválido, saltando...");
       }
     }
 
-    // Generar PDF combinado
+    if (pdfDoc.getPageCount() === 0) {
+      return NextResponse.json({ error: "No se pudo generar el PDF" }, { status: 502 });
+    }
+
     const combinedPdfBytes = await pdfDoc.save();
     const buffer = Buffer.from(combinedPdfBytes);
 
@@ -157,7 +93,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="etiquetas_combinadas_${Date.now()}.pdf"`,
+        "Content-Disposition": `attachment; filename="historial-etiquetas-${new Date().toISOString().slice(0, 10)}.pdf"`,
       },
     });
   } catch (error) {
