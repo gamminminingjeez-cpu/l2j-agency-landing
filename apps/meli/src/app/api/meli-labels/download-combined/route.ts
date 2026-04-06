@@ -72,43 +72,39 @@ export async function POST(req: NextRequest) {
         pdfChunks.push(pdfBytes);
       } catch (error) {
         console.error(`Error processing PDF for record ${record.id}:`, error);
-        // Continuar con el siguiente PDF
       }
     }
 
-    // PDF Merge - 3 etiquetas 10x15 cm en horizontal por hoja A4 (landscape)
+    // PDF Merge - 3 etiquetas por hoja A4 landscape
     // A4 landscape: 297mm x 210mm = 841.89 x 595.28 puntos
-    // Etiqueta 10x15cm: 283.46 x 425.20 puntos (en portrait)
-    // Para poner 3 etiquetas de 10cm de ancho en A4 landscape (29.7cm):
-    // Necesitamos rotar las etiquetas o escalarlas
-    const A4_W = 841.89;  // A4 landscape ancho (29.7cm)
-    const A4_H = 595.28;  // A4 landscape alto (21cm)
+    const A4_W = 841.89;
+    const A4_H = 595.28;
     
-    // Etiqueta en su orientación original (10x15cm portrait)
-    const LABEL_W = 283.46; // 10 cm en puntos
-    const LABEL_H = 425.20; // 15 cm en puntos
-    
-    // Para caber en A4 landscape (21cm de alto), debemos escalar
-    // El alto disponible es A4_H (21cm), la etiqueta mide 15cm de alto
-    // pero al rotarla para ponerla horizontal, el alto sería el ancho (10cm)
-    // Entonces podemos poner etiquetas de 15cm de alto en A4 de 21cm de alto
-    
+    // Configuración: 3 etiquetas por fila
     const LABELS_PER_ROW = 3;
-    const GAP = 15; // Espacio entre etiquetas
+    const MARGIN_X = 20; // Margen lateral
+    const MARGIN_Y = 15; // Margen vertical
+    const GAP_X = 10;    // Espacio horizontal entre etiquetas
+    
+    // Ancho disponible para etiquetas
+    const availableWidth = A4_W - (MARGIN_X * 2);
+    // Alto disponible para etiquetas
+    const availableHeight = A4_H - (MARGIN_Y * 2);
+    
+    // Ancho de cada etiqueta (3 por fila con gaps)
+    const slotWidth = (availableWidth - (GAP_X * (LABELS_PER_ROW - 1))) / LABELS_PER_ROW;
+    // Alto de cada etiqueta (solo una fila por página)
+    const slotHeight = availableHeight;
 
-    // Cargar todos los chunks y recopilar páginas fuente
-    const srcDocs: PDFDocument[] = [];
-    const allLabelPages: { doc: PDFDocument; idx: number }[] = [];
+    // Cargar todos los PDFs
+    const allLabelPages: { doc: PDFDocument; idx: number; srcWidth: number; srcHeight: number }[] = [];
     for (const chunk of pdfChunks) {
       try {
         const src = await PDFDocument.load(chunk, { ignoreEncryption: true });
-        srcDocs.push(src);
-        for (const idx of src.getPageIndices()) {
-          // SOLO la primera pagina de cada PDF (una etiqueta por PDF)
-          if (idx === 0) {
-            allLabelPages.push({ doc: src, idx });
-          }
-        }
+        const pageIdx = 0; // Solo primera página
+        const srcPage = src.getPage(pageIdx);
+        const { width: srcWidth, height: srcHeight } = srcPage.getSize();
+        allLabelPages.push({ doc: src, idx: pageIdx, srcWidth, srcHeight });
       } catch {
         console.warn("[etiquetas] Chunk de PDF invalido, saltando...");
       }
@@ -120,50 +116,32 @@ export async function POST(req: NextRequest) {
 
     const pdfDoc = await PDFDocument.create();
     
-    // Calcular escala para que quepan 3 etiquetas de 10cm de ancho + gaps
-    // Ancho total necesario: 3 * 10cm + 2 * gap
-    const totalWidthNeeded = (LABEL_W * LABELS_PER_ROW) + (GAP * (LABELS_PER_ROW - 1));
-    const scaleX = A4_W / totalWidthNeeded;
-    const scaleY = A4_H / LABEL_H;
-    const scale = Math.min(0.98, scaleX, scaleY); // 0.98 para dejar un pequeño margen de seguridad
-    
-    console.log(`[etiquetas] Escala calculada: ${scale}, scaleX: ${scaleX}, scaleY: ${scaleY}`);
-    console.log(`[etiquetas] Total etiquetas: ${allLabelPages.length}`);
-    
-    const drawW = LABEL_W * scale;
-    const drawH = LABEL_H * scale;
-    
-    // Centrar horizontalmente
-    const totalRowWidth = (drawW * LABELS_PER_ROW) + (GAP * (LABELS_PER_ROW - 1));
-    const startX = (A4_W - totalRowWidth) / 2;
-    // Centrar verticalmente
-    const startY = (A4_H - drawH) / 2;
-    
-    console.log(`[etiquetas] Dibujando: drawW=${drawW}, drawH=${drawH}, startX=${startX}, startY=${startY}`);
+    console.log(`[etiquetas] Total etiquetas a procesar: ${allLabelPages.length}`);
+    console.log(`[etiquetas] Slot size: ${slotWidth.toFixed(2)} x ${slotHeight.toFixed(2)}`);
 
-    // Componer paginas A4 landscape con 3 etiquetas horizontales cada una
+    // Crear páginas A4 con 3 etiquetas cada una
     for (let i = 0; i < allLabelPages.length; i += LABELS_PER_ROW) {
       const group = allLabelPages.slice(i, i + LABELS_PER_ROW);
       const a4Page = pdfDoc.addPage([A4_W, A4_H]);
 
       for (let j = 0; j < group.length; j++) {
-        const { doc, idx } = group[j];
+        const { doc, idx, srcWidth, srcHeight } = group[j];
         const srcPage = doc.getPage(idx);
         
-        // Obtener dimensiones reales de la página fuente
-        const { width: srcWidth, height: srcHeight } = srcPage.getSize();
+        // Calcular escala para que la etiqueta quepa en el slot manteniendo proporción
+        const scaleX = slotWidth / srcWidth;
+        const scaleY = slotHeight / srcHeight;
+        const scale = Math.min(scaleX, scaleY) * 0.95; // 95% para dejar margen
         
-        // Calcular escala manteniendo proporción para esta etiqueta específica
-        const labelScaleX = drawW / srcWidth;
-        const labelScaleY = drawH / srcHeight;
-        const labelScale = Math.min(labelScaleX, labelScaleY);
+        // Dimensiones finales
+        const finalW = srcWidth * scale;
+        const finalH = srcHeight * scale;
         
-        // Calcular dimensiones finales manteniendo proporción
-        const finalW = srcWidth * labelScale;
-        const finalH = srcHeight * labelScale;
+        // Posición: centrada en su slot
+        const x = MARGIN_X + j * (slotWidth + GAP_X) + (slotWidth - finalW) / 2;
+        const y = MARGIN_Y + (slotHeight - finalH) / 2;
         
-        const x = startX + j * (drawW + GAP) + (drawW - finalW) / 2; // Centrar en su slot
-        const y = startY + (drawH - finalH) / 2; // Centrar verticalmente
+        console.log(`[etiquetas] Etiqueta ${i + j}: escala=${scale.toFixed(3)}, pos=(${x.toFixed(1)}, ${y.toFixed(1)}), size=${finalW.toFixed(1)}x${finalH.toFixed(1)}`);
         
         const embedded = await pdfDoc.embedPage(srcPage);
         a4Page.drawPage(embedded, { x, y, width: finalW, height: finalH });
@@ -174,7 +152,6 @@ export async function POST(req: NextRequest) {
     const combinedPdfBytes = await pdfDoc.save();
     const buffer = Buffer.from(combinedPdfBytes);
 
-    // Retornar como PDF
     return new NextResponse(buffer, {
       status: 200,
       headers: {
