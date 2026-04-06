@@ -1286,6 +1286,8 @@ function EtiquetasInner() {
 
             {/* ── Secciones independientes de pendientes por tipo ── */}
             {(["flex", "correo", "turbo"] as const).map(type => {
+              // Respetar filtro: si el usuario seleccionó un tipo, solo mostrar ese
+              if (logisticFilter !== "todas" && logisticFilter !== type) return null;
               const cfg = TYPE_CFG[type];
               const typePend = pendientes.filter(p => p.type === type);
               if (typePend.length === 0) return null;
