@@ -174,6 +174,10 @@ function QuestionCard({ q, onAnswered }: { q: Question; onAnswered: (id: number)
   const [text, setText]       = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false); // ✅ NUEVO: ocultar inmediatamente
+
+  // ✅ Si ya fue respondida, no renderizar
+  if (answered) return null;
 
   const FIRMA = "Atte.: AppJeez de Carlos Spegazzini Ezeiza";
 
@@ -207,6 +211,7 @@ function QuestionCard({ q, onAnswered }: { q: Question; onAnswered: (id: number)
       });
       const data = await res.json();
       if (data.status === "ok") {
+        setAnswered(true); // ✅ Ocultar inmediatamente
         onAnswered(q.meli_question_id);
       } else {
         // Detectar si la pregunta ya fue respondida
@@ -219,6 +224,7 @@ function QuestionCard({ q, onAnswered }: { q: Question; onAnswered: (id: number)
             errorMsg.includes("answered")) {
           setError("Esta pregunta ya fue respondida. Se actualizará la lista.");
           // ✅ Quitar de la lista inmediatamente sin esperar
+          setAnswered(true); // ✅ Ocultar inmediatamente
           onAnswered(q.meli_question_id);
         } else {
           setError(data.error ?? data.code ?? "Error al enviar");
