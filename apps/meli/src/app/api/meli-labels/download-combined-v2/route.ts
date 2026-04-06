@@ -137,22 +137,17 @@ export async function POST(req: NextRequest) {
         pdfDoc.addPage(copied);
       }
     } else {
-      // Etiquetas individuales: 3 por A4 landscape (841x595 pt)
+      // Etiquetas individuales: 3 por A4 landscape
+      // A4 landscape: 841.89 x 595.28 pt (297mm x 210mm)
+      // Slot por etiqueta: 95mm x 142.5mm = 269.3 x 403.9 pt (3 entran exactas)
       const A4_W = 841.89;
       const A4_H = 595.28;
       const COLS = 3;
-
-      // Detectar tamaño real de las etiquetas desde la primera página
-      const firstSrcPage = allPages[0].doc.getPage(allPages[0].idx);
-      const { width: srcW, height: srcH } = firstSrcPage.getSize();
-
-      // Calcular slot: dividir A4 landscape en 3 columnas iguales
-      const slotW = A4_W / COLS;
-      // Escalar para llenar el ancho del slot manteniendo proporción
-      const scale = slotW / srcW;
-      const drawW = srcW * scale;
-      const drawH = srcH * scale;
-      const MY = drawH < A4_H ? (A4_H - drawH) / 2 : 0;
+      const SLOT_W = 269.3;  // 95mm en pt
+      const SLOT_H = 403.9;  // 142.5mm en pt
+      const totalW = COLS * SLOT_W;
+      const MX = (A4_W - totalW) / 2; // centrado horizontal
+      const MY = (A4_H - SLOT_H) / 2; // centrado vertical
 
       for (let i = 0; i < allPages.length; i += COLS) {
         const group = allPages.slice(i, i + COLS);
@@ -160,9 +155,16 @@ export async function POST(req: NextRequest) {
 
         for (let j = 0; j < group.length; j++) {
           const { doc, idx } = group[j];
-          const embedded = await pdfDoc.embedPage(doc.getPage(idx));
-          const x = j * slotW;
-          a4.drawPage(embedded, { x, y: MY, width: drawW, height: drawH });
+          const srcPage = doc.getPage(idx);
+          const { width: srcW, height: srcH } = srcPage.getSize();
+          // Escalar para llenar el slot manteniendo proporción
+          const scale = Math.min(SLOT_W / srcW, SLOT_H / srcH);
+          const drawW = srcW * scale;
+          const drawH = srcH * scale;
+          const x = MX + j * SLOT_W + (SLOT_W - drawW) / 2;
+          const y = MY + (SLOT_H - drawH) / 2;
+          const embedded = await pdfDoc.embedPage(srcPage);
+          a4.drawPage(embedded, { x, y, width: drawW, height: drawH });
         }
       }
     }
