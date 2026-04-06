@@ -134,22 +134,15 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // Etiquetas individuales — combinar 3 por A4 landscape
-      // Cada etiqueta de MeLi viene en una página A4 portrait (595×842 pt)
-      // pero el contenido real de la etiqueta es ~283×425 pt (10×15cm)
-      // Hacemos crop del área de contenido para maximizar el tamaño en A4
       const A4_W = 841.89;
       const A4_H = 595.28;
       const COLS = 3;
-      const MX = 4;  // margen horizontal mínimo
-      const MY = 4;  // margen vertical mínimo
-      const GAP = 4; // espacio entre etiquetas
+      const MX = 4;
+      const MY = 4;
+      const GAP = 4;
 
       const slotW = (A4_W - MX * 2 - GAP * (COLS - 1)) / COLS;
       const slotH = A4_H - MY * 2;
-
-      // Tamaño real de una etiqueta 10×15cm en puntos PDF (72 pt/in, 1 in = 2.54 cm)
-      const LABEL_W_PT = 283.46; // 10 cm
-      const LABEL_H_PT = 425.20; // 15 cm
 
       for (let i = 0; i < allPages.length; i += COLS) {
         const group = allPages.slice(i, i + COLS);
@@ -160,33 +153,13 @@ export async function POST(req: NextRequest) {
           const srcPage = doc.getPage(idx);
           const { width: srcW, height: srcH } = srcPage.getSize();
 
-          // Si la página es mayor que una etiqueta individual, aplicar crop centrado
-          // para eliminar los márgenes en blanco que MeLi agrega alrededor del contenido
-          let boundingBox: { left: number; bottom: number; right: number; top: number } | undefined;
-          if (srcW > LABEL_W_PT * 1.1 || srcH > LABEL_H_PT * 1.1) {
-            // Crop centrado al tamaño aproximado de la etiqueta + pequeño margen
-            const margin = 8;
-            const cropW = Math.min(LABEL_W_PT + margin * 2, srcW);
-            const cropH = Math.min(LABEL_H_PT + margin * 2, srcH);
-            boundingBox = {
-              left:   (srcW - cropW) / 2,
-              bottom: (srcH - cropH) / 2,
-              right:  (srcW - cropW) / 2 + cropW,
-              top:    (srcH - cropH) / 2 + cropH,
-            };
-          }
-
-          // Tamaño de la fuente después del crop (o la página completa si no se cropea)
-          const effW = boundingBox ? (boundingBox.right - boundingBox.left) : srcW;
-          const effH = boundingBox ? (boundingBox.top - boundingBox.bottom) : srcH;
-
-          const scale = Math.min(slotW / effW, slotH / effH);
-          const drawW = effW * scale;
-          const drawH = effH * scale;
+          const scale = Math.min(slotW / srcW, slotH / srcH);
+          const drawW = srcW * scale;
+          const drawH = srcH * scale;
           const x = MX + j * (slotW + GAP) + (slotW - drawW) / 2;
           const y = MY + (slotH - drawH) / 2;
 
-          const embedded = await pdfDoc.embedPage(srcPage, boundingBox);
+          const embedded = await pdfDoc.embedPage(srcPage);
           a4.drawPage(embedded, { x, y, width: drawW, height: drawH });
         }
       }
