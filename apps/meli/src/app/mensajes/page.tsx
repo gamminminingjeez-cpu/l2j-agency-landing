@@ -210,15 +210,18 @@ function QuestionCard({ q, onAnswered }: { q: Question; onAnswered: (id: number)
         onAnswered(q.meli_question_id);
       } else {
         // Detectar si la pregunta ya fue respondida
-        const errorMsg = data.error ?? data.code ?? "Error al enviar";
-        if (errorMsg.toLowerCase().includes("not unanswered") || errorMsg.toLowerCase().includes("ya fue respondida")) {
+        const errorMsg = (data.error ?? data.code ?? "Error al enviar").toString().toLowerCase();
+        if (errorMsg.includes("not unanswered") || 
+            errorMsg.includes("ya fue respondida") ||
+            errorMsg.includes("already answered") ||
+            errorMsg.includes("question already") ||
+            errorMsg.includes("respondida") ||
+            errorMsg.includes("answered")) {
           setError("Esta pregunta ya fue respondida. Se actualizará la lista.");
-          // ✅ Quitar de la lista y sincronizar sin recargar la página completa
-          setTimeout(() => {
-            onAnswered(q.meli_question_id);
-          }, 1500);
+          // ✅ Quitar de la lista inmediatamente sin esperar
+          onAnswered(q.meli_question_id);
         } else {
-          setError(errorMsg);
+          setError(data.error ?? data.code ?? "Error al enviar");
         }
       }
     } catch {
