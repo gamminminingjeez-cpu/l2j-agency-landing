@@ -226,11 +226,11 @@ export async function getValidTokenForAccount(
 }
 
 // ── LLAMADAS API MELI ─────────────────────────────────────────
-export async function meliGet(path: string, token: string) {
+export async function meliGet(path: string, token: string, timeoutMs = 12000) {
   try {
     const res = await fetch(`https://api.mercadolibre.com${path}`, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
       console.error(`[meliGet] HTTP ${res.status} en ${path}`, await res.text().catch(() => ""));

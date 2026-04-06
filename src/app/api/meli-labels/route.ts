@@ -268,10 +268,10 @@ export async function GET(req: Request) {
         tokenCache.set(String(acc.meli_user_id), token);
 
         const [dataReady, dataHandling, dataShipped, dataNotDelivered] = await Promise.all([
-          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=50&shipping.status=ready_to_ship`, token),
-          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=50&shipping.status=handling`, token),
-          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=50&shipping.status=shipped`, token),
-          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=50&shipping.status=not_delivered`, token),
+          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=20&shipping.status=ready_to_ship`, token, 8000),
+          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=20&shipping.status=handling`, token, 8000),
+          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=20&shipping.status=shipped`, token, 8000),
+          meliGet(`/orders/search?seller=${acc.meli_user_id}&order.status=paid&sort=date_desc&limit=20&shipping.status=not_delivered`, token, 8000),
         ]);
 
         const readyResults        = ((dataReady?.results        ?? []) as Array<Record<string, unknown>>);
