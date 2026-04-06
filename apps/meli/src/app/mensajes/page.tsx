@@ -382,6 +382,8 @@ function MensajesInner() {
   const initialLoadDone = useRef(false);
   const workerRef       = useRef<Worker | null>(null);
   const loadRef          = useRef<((sync?: boolean) => Promise<void>) | null>(null);
+  // IDs de preguntas respondidas en esta sesión — se filtran siempre para evitar que reaparezcan
+  const answeredIdsRef   = useRef<Set<number>>(new Set());
 
   const load = useCallback(async (sync = false) => {
     if (sync) setSyncing(true); else setLoading(true);
@@ -400,6 +402,8 @@ function MensajesInner() {
       const unique = (data.questions || []).filter((q: Question) => {
         if (seen.has(q.meli_question_id)) return false;
         seen.add(q.meli_question_id);
+        // Filtrar preguntas respondidas en esta sesión (MeLi tarda en actualizar status)
+        if (answeredIdsRef.current.has(q.meli_question_id)) return false;
         return true;
       });
 
@@ -437,14 +441,10 @@ function MensajesInner() {
   }, []);
 
   const handleAnswered = (id: number) => {
+    // Registrar como respondida para que no reaparezca al re-sincronizar
+    answeredIdsRef.current.add(id);
     // Quitar inmediatamente del estado local para feedback instantáneo
     setQuestions(qs => qs.filter(q => q.meli_question_id !== id));
-    
-    // ✅ FORZAR SYNC: Recargar desde el servidor inmediatamente para asegurar que 
-    // las preguntas contestadas se eliminen de la lista (evita que persistan en la pestaña)
-    setTimeout(() => {
-      loadRef.current?.(true);
-    }, 500); // Pequeño delay para que el servidor procese la respuesta
   };
 
   const filtered = questions.filter(q =>
