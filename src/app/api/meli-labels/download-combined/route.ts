@@ -67,63 +67,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // PDF Merge - 3 etiquetas por hoja A4 landscape
-    const A4_W = 841.89;
-    const A4_H = 595.28;
-    
-    const LABELS_PER_ROW = 3;
-    const MARGIN_X = 20;
-    const MARGIN_Y = 15;
-    const GAP_X = 10;
-    
-    const availableWidth = A4_W - (MARGIN_X * 2);
-    const availableHeight = A4_H - (MARGIN_Y * 2);
-    
-    const slotWidth = (availableWidth - (GAP_X * (LABELS_PER_ROW - 1))) / LABELS_PER_ROW;
-    const slotHeight = availableHeight;
+    // PDF Merge - copiar páginas tal como están (ya vienen en A4 con 3 etiquetas)
+    const pdfDoc = await PDFDocument.create();
 
-    // Cargar todos los PDFs
-    const allLabelPages: { doc: PDFDocument; idx: number; srcWidth: number; srcHeight: number }[] = [];
     for (const chunk of pdfChunks) {
       try {
         const src = await PDFDocument.load(chunk, { ignoreEncryption: true });
-        const pageIdx = 0;
-        const srcPage = src.getPage(pageIdx);
-        const { width: srcWidth, height: srcHeight } = srcPage.getSize();
-        allLabelPages.push({ doc: src, idx: pageIdx, srcWidth, srcHeight });
+        const copiedPages = await pdfDoc.copyPages(src, src.getPageIndices());
+        copiedPages.forEach(page => pdfDoc.addPage(page));
       } catch {
-        console.warn("[etiquetas] Chunk de PDF invalido, saltando...");
+        console.warn("[historial] PDF inválido, saltando...");
       }
     }
 
-    if (allLabelPages.length === 0) {
+    if (pdfDoc.getPageCount() === 0) {
       return NextResponse.json({ error: "No se pudo generar el PDF" }, { status: 502 });
-    }
-
-    const pdfDoc = await PDFDocument.create();
-
-    // Crear páginas A4 con 3 etiquetas cada una
-    for (let i = 0; i < allLabelPages.length; i += LABELS_PER_ROW) {
-      const group = allLabelPages.slice(i, i + LABELS_PER_ROW);
-      const a4Page = pdfDoc.addPage([A4_W, A4_H]);
-
-      for (let j = 0; j < group.length; j++) {
-        const { doc, idx, srcWidth, srcHeight } = group[j];
-        const srcPage = doc.getPage(idx);
-        
-        const scaleX = slotWidth / srcWidth;
-        const scaleY = slotHeight / srcHeight;
-        const scale = Math.min(scaleX, scaleY) * 0.95;
-        
-        const finalW = srcWidth * scale;
-        const finalH = srcHeight * scale;
-        
-        const x = MARGIN_X + j * (slotWidth + GAP_X) + (slotWidth - finalW) / 2;
-        const y = MARGIN_Y + (slotHeight - finalH) / 2;
-        
-        const embedded = await pdfDoc.embedPage(srcPage);
-        a4Page.drawPage(embedded, { x, y, width: finalW, height: finalH });
-      }
     }
 
     const combinedPdfBytes = await pdfDoc.save();
