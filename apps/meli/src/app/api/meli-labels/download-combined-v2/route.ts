@@ -124,45 +124,14 @@ export async function POST(req: NextRequest) {
     // Si son individuales (2 pág por label): 10 labels → 20 páginas (>= 10) → combinar
     const isAlreadyGrouped = allPages.length < totalLabels;
 
+    // ── Combinar PDFs de todas las cuentas ───────────────────────────────
+    // Copiar páginas tal como vienen de MeLi, sin escalar.
+    // Si MeLi devuelve etiquetas individuales 10x15, se mantienen así.
+    // Si MeLi las agrupa 3 por A4, se mantienen así.
     const pdfDoc = await PDFDocument.create();
-
-    if (isAlreadyGrouped) {
-      // MeLi ya las agrupó — copiar tal cual
-      for (const { doc, idx } of allPages) {
-        const [copied] = await pdfDoc.copyPages(doc, [idx]);
-        pdfDoc.addPage(copied);
-      }
-    } else {
-      // Etiquetas individuales — combinar 3 por A4 landscape
-      const A4_W = 841.89;
-      const A4_H = 595.28;
-      const COLS = 3;
-      const MX = 4;
-      const MY = 4;
-      const GAP = 4;
-
-      const slotW = (A4_W - MX * 2 - GAP * (COLS - 1)) / COLS;
-      const slotH = A4_H - MY * 2;
-
-      for (let i = 0; i < allPages.length; i += COLS) {
-        const group = allPages.slice(i, i + COLS);
-        const a4 = pdfDoc.addPage([A4_W, A4_H]);
-
-        for (let j = 0; j < group.length; j++) {
-          const { doc, idx } = group[j];
-          const srcPage = doc.getPage(idx);
-          const { width: srcW, height: srcH } = srcPage.getSize();
-
-          const scale = Math.min(slotW / srcW, slotH / srcH);
-          const drawW = srcW * scale;
-          const drawH = srcH * scale;
-          const x = MX + j * (slotW + GAP) + (slotW - drawW) / 2;
-          const y = MY + (slotH - drawH) / 2;
-
-          const embedded = await pdfDoc.embedPage(srcPage);
-          a4.drawPage(embedded, { x, y, width: drawW, height: drawH });
-        }
-      }
+    for (const { doc, idx } of allPages) {
+      const [copied] = await pdfDoc.copyPages(doc, [idx]);
+      pdfDoc.addPage(copied);
     }
 
     return new NextResponse(Buffer.from(await pdfDoc.save()), {
