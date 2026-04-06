@@ -22,10 +22,14 @@ export async function POST(req: NextRequest) {
 
     // Validar permisos: obtener registros
     const supabase = getSupabase();
+    
+    // Eliminar IDs duplicados
+    const uniqueIds = [...new Set(ids)];
+    
     let query = supabase
       .from("printed_labels")
       .select("*")
-      .in("id", ids);
+      .in("id", uniqueIds);
 
     if (meli_user_id) {
       query = query.eq("meli_user_id", meli_user_id) as typeof query;
@@ -40,10 +44,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Eliminar registros duplicados por shipment_id (solo uno por etiqueta)
+    const uniqueRecords = [];
+    const seenShipmentIds = new Set();
+    for (const record of records) {
+      if (!seenShipmentIds.has(record.shipment_id)) {
+        seenShipmentIds.add(record.shipment_id);
+        uniqueRecords.push(record);
+      }
+    }
+
     // Descargar cada PDF y combinar en formato A4 landscape (3 etiquetas por fila)
     const pdfChunks: ArrayBuffer[] = [];
 
-    for (const record of records) {
+    for (const record of uniqueRecords) {
       try {
         const filePath = record.file_path;
         
