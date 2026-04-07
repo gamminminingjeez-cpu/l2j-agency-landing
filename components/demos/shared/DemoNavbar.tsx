@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ThemeKey, themes } from '@/lib/themes';
-import { Menu, X, User, LogOut, Skull, Castle, TreePine } from 'lucide-react';
+import { Menu, X, User, LogOut, Skull, Castle, TreePine, ArrowLeft, Crown } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -52,16 +52,27 @@ export function DemoNavbar({ themeKey }: DemoNavbarProps) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href={basePath} className="flex items-center gap-2">
-            <ThemeIcon 
-              className="w-8 h-8" 
-              style={{ color: theme.colors.primary }} 
-            />
-            <span className="text-xl font-bold text-white">
-              L2{theme.name}
-            </span>
-          </Link>
+          {/* Logo & Back to Landing */}
+          <div className="flex items-center gap-4">
+            <Link 
+              href="/" 
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              title="Volver a L2J Agency"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="hidden sm:inline text-sm">L2J Agency</span>
+            </Link>
+            <div className="w-px h-6 bg-white/20" />
+            <Link href={basePath} className="flex items-center gap-2">
+              <ThemeIcon 
+                className="w-8 h-8" 
+                style={{ color: theme.colors.primary }} 
+              />
+              <span className="text-xl font-bold text-white">
+                L2{theme.name}
+              </span>
+            </Link>
+          </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-6">
@@ -152,6 +163,15 @@ export function DemoNavbar({ themeKey }: DemoNavbarProps) {
               style={{ borderColor: `${theme.colors.primary}20` }}
             >
               <div className="py-4 space-y-2">
+                <Link
+                  href="/"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 text-white/80 hover:text-white"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Volver a L2J Agency
+                </Link>
+                <div className="border-t border-white/10 my-2" />
                 {navLinks.map((link) => (
                   <Link
                     key={link.href}
