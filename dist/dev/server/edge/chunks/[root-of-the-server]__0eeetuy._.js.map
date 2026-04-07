@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 16, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/Downloads/APP PARA TALLER MAQJEEZ/src/middleware.ts"],"sourcesContent":["import { NextResponse } from 'next/server';\r\nimport type { NextRequest } from 'next/server';\r\n\r\nexport function middleware(request: NextRequest) {\r\n  // Log para debugging\r\n  console.log('[Middleware]', request.nextUrl.pathname);\r\n  \r\n  // Permitir todas las rutas\r\n  return NextResponse.next();\r\n}\r\n\r\nexport const config = {\r\n  matcher: [\r\n    '/((?!api|_next/static|_next/image|favicon.ico).*)',\r\n  ],\r\n};\r\n"],"names":["middleware","request","console","log","nextUrl","pathname","next","config","matcher"],"mappings":";;;;;;AAAA;AAAA;;AAGO,SAASA,WAAWC,OAAoB;IAC7C,qBAAqB;IACrBC,QAAQC,GAAG,CAAC,gBAAgBF,QAAQG,OAAO,CAACC,QAAQ;IAEpD,2BAA2B;IAC3B,OAAO,gTAAY,CAACC,IAAI;AAC1B;AAEO,MAAMC,SAAS;IACpBC,SAAS;QACP;KACD;AACH"}}]
+}

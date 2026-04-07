@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[11527,["/_next/static/chunks/07vzubt0c0434.js","/_next/static/chunks/172amywebhlir.js","/_next/static/chunks/0ku9.mik6~ptp.js"],"ViewportBoundary"]
+3:I[11527,["/_next/static/chunks/07vzubt0c0434.js","/_next/static/chunks/172amywebhlir.js","/_next/static/chunks/0ku9.mik6~ptp.js"],"MetadataBoundary"]
+4:"$Sreact.suspense"
+5:I[99199,["/_next/static/chunks/07vzubt0c0434.js","/_next/static/chunks/172amywebhlir.js","/_next/static/chunks/0ku9.mik6~ptp.js"],"IconMark"]
+0:{"rsc":["$","$1","h",{"children":[null,["$","$L2",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L3",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"L2J Agency | Webs y Paneles para Servidores Lineage 2"}],["$","meta","1",{"name":"description","content":"Lleva tu servidor L2J a la próxima Crónica. Webs épicas, seguras y automatizadas para administradores exigentes."}],["$","link","2",{"rel":"icon","href":"/favicon.ico?favicon.0x3dzn~oxb6tn.ico","sizes":"256x256","type":"image/x-icon"}],["$","$L5","3",{}]]}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"YsBhHfbooxSmnZNb39KeB"}
